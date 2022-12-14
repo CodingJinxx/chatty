@@ -20,7 +20,7 @@ type Receiver<T> = mpsc::UnboundedReceiver<T>;
 enum Void {}
 
 pub(crate) fn main() -> Result<()> {
-    task::block_on(accept_loop("127.0.0.1:8080"))
+    task::block_on(accept_loop("0.0.0.0:6969"))
 }
 
 async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
@@ -162,6 +162,7 @@ async fn broker_loop(mut events: Receiver<Event>) {
         };
         match event {
             Event::Broadcast { msg } => {
+                println!("BROADCAST");
                 for addr in to {
                     if let Some(peer) = peers.get_mut(&addr) {
                         let msg = format!("from server: {}\n", from, msg);
