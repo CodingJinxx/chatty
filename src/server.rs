@@ -6,7 +6,7 @@ use std::{
 use futures::{channel::mpsc, select, FutureExt, SinkExt};
 
 use async_std::{
-    io::BufReader,
+    io::{stdin, BufReader},
     net::{TcpListener, TcpStream, ToSocketAddrs},
     prelude::*,
     task,
@@ -33,7 +33,6 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
     let stdin = BufReader::new(stdin());
     let mut lines_from_stdin = futures::StreamExt::fuse(stdin.lines());
 
-
     loop {
         select! {
             stream = incoming.next().fuse() => match stream {
@@ -42,16 +41,16 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
                     println!("Accepting from: {}", stream.peer_addr()?);
                     spawn_and_log_error(connection_loop(broker_sender.clone(), stream));
                 },
-                None() => _
+                None => {},
             },
             line = lines_from_stdin.next().fuse() => match line {
                 Some(line) => {
                     println!("Works");
                     let line = line?;
                     // Broker Event Broadcast
-                    broker.send(Events::Broadcast {
-                        msg: line 
-                    }).await?;
+                    broker_sender.clone().send(Event::Broadcast {
+                        msg: line
+                    }).await.unwrap();
                 }
                 None => break,
             }
@@ -164,11 +163,9 @@ async fn broker_loop(mut events: Receiver<Event>) {
         match event {
             Event::Broadcast { msg } => {
                 println!("BROADCAST");
-                for addr in to {
-                    if let Some(peer) = peers.get_mut(&addr) {
-                        let msg = format!("from server: {}\n", from, msg);
-                        peer.send(msg).await.unwrap();
-                    }
+                for (name, peer) in peers.iter_mut() {
+                    let msg = format!("from server to {}: {}\n",name, msg);
+                    peer.send(msg).await.unwrap();
                 }
             }
             Event::Message { from, to, msg } => {
