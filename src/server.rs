@@ -29,10 +29,32 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
     let (broker_sender, broker_receiver) = mpsc::unbounded();
     let broker = task::spawn(broker_loop(broker_receiver));
     let mut incoming = listener.incoming();
-    while let Some(stream) = incoming.next().await {
-        let stream = stream?;
-        println!("Accepting from: {}", stream.peer_addr()?);
-        spawn_and_log_error(connection_loop(broker_sender.clone(), stream));
+
+    let stdin = BufReader::new(stdin());
+    let mut lines_from_stdin = futures::StreamExt::fuse(stdin.lines());
+
+
+    loop {
+        select! {
+            stream = incoming.next().fuse() => match stream {
+                Some(stream) => {
+                    let stream = stream?;
+                    println!("Accepting from: {}", stream.peer_addr()?);
+                    spawn_and_log_error(connection_loop(broker_sender.clone(), stream));
+                },
+                None() => _
+            },
+            line = lines_from_stdin.next().fuse() => match line {
+                Some(line) => {
+                    let line = line?;
+                    // Broker Event Broadcast
+                    broker.send(Events::Broadcast {
+                        msg: line 
+                    });
+                }
+                None => break,
+            }
+        }
     }
     drop(broker_sender);
     broker.await;
@@ -116,6 +138,9 @@ enum Event {
         to: Vec<String>,
         msg: String,
     },
+    Broadcast {
+        msg: String
+    }
 }
 
 async fn broker_loop(mut events: Receiver<Event>) {
@@ -136,6 +161,14 @@ async fn broker_loop(mut events: Receiver<Event>) {
             },
         };
         match event {
+            Event::Broadcast { msg } => {
+                for addr in to {
+                    if let Some(peer) = peers.get_mut(&addr) {
+                        let msg = format!("from server: {}\n", from, msg);
+                        peer.send(msg).await.unwrap();
+                    }
+                }
+            }
             Event::Message { from, to, msg } => {
                 for addr in to {
                     if let Some(peer) = peers.get_mut(&addr) {
