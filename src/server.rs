@@ -20,7 +20,7 @@ type Receiver<T> = mpsc::UnboundedReceiver<T>;
 enum Void {}
 
 pub(crate) fn main() -> Result<()> {
-    task::block_on(accept_loop("0.0.0.0:6969"))
+    task::block_on(accept_loop("127.0.0.1:8080"))
 }
 
 async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
@@ -37,6 +37,7 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
         select! {
             stream = incoming.next().fuse() => match stream {
                 Some(stream) => {
+                    println!("No Work");
                     let stream = stream?;
                     println!("Accepting from: {}", stream.peer_addr()?);
                     spawn_and_log_error(connection_loop(broker_sender.clone(), stream));
@@ -45,7 +46,6 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
             },
             line = lines_from_stdin.next().fuse() => match line {
                 Some(line) => {
-                    println!("Works");
                     let line = line?;
                     // Broker Event Broadcast
                     broker_sender.clone().send(Event::Broadcast {
