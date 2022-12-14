@@ -50,7 +50,7 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
                     // Broker Event Broadcast
                     broker.send(Events::Broadcast {
                         msg: line 
-                    });
+                    }).await?;
                 }
                 None => break,
             }
