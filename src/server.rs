@@ -46,6 +46,7 @@ async fn accept_loop(addr: impl ToSocketAddrs) -> Result<()> {
             },
             line = lines_from_stdin.next().fuse() => match line {
                 Some(line) => {
+                    println!("Works");
                     let line = line?;
                     // Broker Event Broadcast
                     broker.send(Events::Broadcast {
